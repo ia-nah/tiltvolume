@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>TiltVolume • YouTube contrôlé par l’inclinaison</title>
+  <title>TiltVolume • YouTube & MP4 au tilt (iPhone OK)</title>
   <!-- PWA metas -->
   <meta name="theme-color" content="#0b0f14" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <style>
-    :root{ --bg:#0b0f14; --fg:#eaf2ff; --muted:#a9b4c7; --accent:#5bbcff; --card:#121823; }
+    :root{ --bg:#0b0f14; --fg:#eaf2ff; --muted:#a9b4c7; --accent:#5bbcff; --card:#121823; --err:#ef4444 }
     *{box-sizing:border-box}
     html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg)}
     .wrap{max-width:920px;margin:0 auto;padding:16px 16px 80px}
@@ -20,13 +20,13 @@
     h1 span.logo{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--accent);color:#00324a;font-weight:900}
     .card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:14px;box-shadow:0 8px 20px rgba(0,0,0,.25)}
     .row{display:flex;gap:10px;flex-wrap:wrap}
-    input[type="url"]{flex:1;min-width:200px;border:1px solid rgba(255,255,255,.1);background:#0e1520;color:var(--fg);border-radius:12px;padding:12px 14px;font-size:16px}
+    input[type="url"], input[type="text"]{flex:1;min-width:200px;border:1px solid rgba(255,255,255,.1);background:#0e1520;color:var(--fg);border-radius:12px;padding:12px 14px;font-size:16px}
     button{border:0;border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px;color:#03121a;background:var(--accent);cursor:pointer;box-shadow:0 6px 14px rgba(91,188,255,.35)}
     button.secondary{background:#1f2a37;color:var(--fg);box-shadow:none;border:1px solid rgba(255,255,255,.08)}
     button:disabled{opacity:.55;cursor:not-allowed}
     .help{color:var(--muted);font-size:13px;margin-top:8px}
     .player-shell{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:16 / 9}
-    #player{width:100%;height:100%}
+    #player, video{width:100%;height:100%}
     .hud{position:absolute;left:10px;bottom:10px;right:10px;display:flex;align-items:center;gap:10px;pointer-events:none}
     .bar{flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.15);overflow:hidden}
     .bar > i{display:block;height:100%;width:50%;background:linear-gradient(90deg,#3b82f6,#22d3ee)}
@@ -35,177 +35,213 @@
     .perm{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
     .note{font-size:12px;color:var(--muted)}
     .grid{display:grid;gap:12px}
+    .tabs{display:flex;gap:8px;margin-top:8px}
+    .tab{padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#141b27;color:var(--fg);cursor:pointer}
+    .tab.active{background:var(--accent);color:#03121a;border-color:transparent}
+    .warn{color:#fff;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);padding:10px;border-radius:12px}
     @media (max-width:480px){h1{font-size:18px}}
   </style>
 </head>
 <body>
   <header class="wrap">
-    <h1><span class="logo">↔︎</span> TiltVolume • YouTube au tilt</h1>
+    <h1><span class="logo">↔︎</span> TiltVolume • YouTube & MP4 au tilt</h1>
   </header>
 
   <main class="wrap grid">
     <section class="card grid">
-      <label for="ytUrl">Colle un lien YouTube (long ou court) :</label>
-      <div class="row">
-        <input id="ytUrl" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
-        <button id="loadBtn">Intégrer</button>
-        <button id="playBtn" class="secondary" disabled>Lire / Pause</button>
+      <div class="tabs">
+        <button class="tab active" id="tab-youtube">YouTube</button>
+        <button class="tab" id="tab-mp4">Vidéo MP4 (contrôle volume garanti)</button>
       </div>
-      <p class="help">L’app règle le volume selon l’inclinaison en mode <strong>portrait</strong> : au milieu (téléphone droit) = 50%. Penche à droite → +volume, penche à gauche → −volume.</p>
-      <div class="perm">
-        <button id="permBtn" class="secondary">Activer le contrôle par inclinaison</button>
-        <span class="note">iPhone (iOS 13+) : il faut autoriser l’accès aux capteurs de mouvement. Utilise HTTPS (ex. GitHub Pages) pour que cela fonctionne.</span>
-      </div>
-    </section>
 
-    <section class="card grid">
-      <div class="player-shell">
-        <div id="player"></div>
-        <div class="hud">
-          <div class="badge status" id="status">Volume — 0%</div>
-          <div class="bar"><i id="barFill" style="width:0%"></i></div>
-          <div class="badge" id="tiltLabel">Tilt — 0°</div>
+      <div id="panel-youtube" class="grid">
+        <label for="ytUrl">Colle un lien YouTube (long/court) :</label>
+        <div class="row">
+          <input id="ytUrl" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+          <button id="loadBtn">Intégrer</button>
+          <button id="playBtn" class="secondary" disabled>Lire / Pause</button>
+        </div>
+        <p class="help">En mode <strong>portrait</strong> : téléphone droit = 50%. Penche à droite → +volume, à gauche → −volume.</p>
+        <div class="warn" id="iosLimit" style="display:none">
+          ⚠️ Limitation iOS/WebKit : Apple bloque le réglage logiciel du volume dans les iframes (YouTube).<br>
+          Résultat : l’UI bouge mais iOS garde le volume des boutons latéraux. Utilise les boutons pour le vrai volume, ou passe à l’onglet <b>MP4</b> pour un contrôle 0–100% via WebAudio.
+        </div>
+        <div class="perm">
+          <button id="permBtn" class="secondary">Activer le contrôle par inclinaison</button>
+          <span class="note">iPhone (iOS 13+) : autorise l’accès aux capteurs. HTTPS requis.</span>
+        </div>
+        <div class="player-shell"><div id="player"></div>
+          <div class="hud">
+            <div class="badge status" id="status">Volume — 0%</div>
+            <div class="bar"><i id="barFill" style="width:0%"></i></div>
+            <div class="badge" id="tiltLabel">Tilt — 0°</div>
+          </div>
         </div>
       </div>
-      <p class="note">Astuce : si le volume ne bouge pas, vérifie que l’orientation est en portrait, que l’autorisation capteurs est accordée et qu’une vidéo est chargée. Le volume agit sur le lecteur YouTube, pas sur le volume système iOS.</p>
+
+      <div id="panel-mp4" class="grid" style="display:none">
+        <label for="mp4Url">Lien direct vers une vidéo MP4 (même domaine ou CORS OK) :</label>
+        <div class="row">
+          <input id="mp4Url" type="url" inputmode="url" placeholder="https://exemple.com/video.mp4" />
+          <button id="mp4Load">Charger</button>
+          <button id="mp4Play" class="secondary" disabled>Lire / Pause</button>
+        </div>
+        <p class="help">Ici le volume est contrôlé <em>réellement</em> par WebAudio (0–100%). Toujours en mode portrait : milieu = 50%.</p>
+        <div class="player-shell">
+          <video id="mp4Video" playsinline webkit-playsinline controls crossorigin="anonymous"></video>
+          <div class="hud">
+            <div class="badge status" id="status2">Volume — 0%</div>
+            <div class="bar"><i id="barFill2" style="width:0%"></i></div>
+            <div class="badge" id="tiltLabel2">Tilt — 0°</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="card">
       <details>
-        <summary>Comment ça marche ?</summary>
+        <summary>Astuce & limites</summary>
         <ul>
-          <li>Colle un lien YouTube puis clique <em>Intégrer</em>.</li>
-          <li>Sur iPhone, clique <em>Activer le contrôle par inclinaison</em> et autorise l’accès.</li>
-          <li>Redresse le téléphone (portrait) : volume ≈ 50%. Penche à droite pour augmenter jusqu’à 100%, à gauche pour baisser jusqu’à 0%.</li>
-          <li>Le bouton <em>Lire / Pause</em> assure le démarrage sur iOS (lecture requiert un geste utilisateur).</li>
+          <li><strong>YouTube sur iPhone</strong> : iOS bloque <code>setVolume</code> dans une iframe → boutons latéraux pour le volume réel.</li>
+          <li><strong>Mode MP4</strong> : le gain audio est appliqué via WebAudio → volume 0–100% effectif.</li>
+          <li>Il faut autoriser les capteurs (inclinaison) et rester en <strong>portrait</strong>.</li>
         </ul>
       </details>
     </section>
   </main>
 
-  <!-- YouTube IFrame API -->
+  <!-- YouTube IFrame API (pour l’onglet YouTube) -->
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
+  // --- Helpers généraux ---
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+  function gammaToVolume(g){
+    const clamped = clamp(g || 0, -90, 90);
+    return clamp(Math.round(((clamped + 90) / 180) * 100), 0, 100);
+  }
+
+  // --- Onglet / panneaux ---
+  const tabYT = document.getElementById('tab-youtube');
+  const tabMP4 = document.getElementById('tab-mp4');
+  const panelYT = document.getElementById('panel-youtube');
+  const panelMP4 = document.getElementById('panel-mp4');
+  function setTab(which){
+    const yt = which === 'yt';
+    tabYT.classList.toggle('active', yt); panelYT.style.display = yt ? '' : 'none';
+    tabMP4.classList.toggle('active', !yt); panelMP4.style.display = yt ? 'none' : '';
+  }
+  tabYT.onclick = ()=>setTab('yt');
+  tabMP4.onclick = ()=>setTab('mp4');
+
+  // --- YouTube ---
+  const iosNote = document.getElementById('iosLimit');
+  if(isIOS) iosNote.style.display = '';
+  let ytPlayer = null, ytLast = 50, oriActiveYT=false;
+  const statusEl=document.getElementById('status');
+  const barFill=document.getElementById('barFill');
+  const tiltLabel=document.getElementById('tiltLabel');
+  const playBtn=document.getElementById('playBtn');
+  window.onYouTubeIframeAPIReady=function(){};
   function extractYouTubeId(url){
-    try{
-      const u=new URL(url);
+    try{ const u=new URL(url);
       if(u.hostname.includes('youtu.be')) return u.pathname.slice(1);
       if(u.searchParams.get('v')) return u.searchParams.get('v');
       const paths=u.pathname.split('/').filter(Boolean);
       const ix=paths.findIndex(p=>p==='embed'||p==='shorts');
       if(ix>=0 && paths[ix+1]) return paths[ix+1];
     }catch(e){}
-    if(/^[a-zA-Z0-9_-]{11}$/.test(url.trim())) return url.trim();
+    if(/^[a-zA-Z0-9_-]{11}$/.test((url||'').trim())) return url.trim();
     return null;
   }
-
-  let player=null; let lastSet=50; let orientationActive=false;
-  const statusEl=document.getElementById('status');
-  const barFill=document.getElementById('barFill');
-  const tiltLabel=document.getElementById('tiltLabel');
-  const playBtn=document.getElementById('playBtn');
-
-  window.onYouTubeIframeAPIReady=function(){};
-
-  function initPlayer(videoId){
-    if(player){ player.destroy(); }
-    player=new YT.Player('player',{
-      videoId,
+  function initYT(id){
+    if(ytPlayer) ytPlayer.destroy();
+    ytPlayer = new YT.Player('player',{
+      videoId:id,
       playerVars:{ rel:0, playsinline:1, origin:location.origin },
-      events:{
-        onReady:()=>{ playBtn.disabled=false; updateUI(lastSet); },
-        onStateChange:(e)=>{}
-      }
+      events:{ onReady:()=>{ playBtn.disabled=false; updateUIYT(ytLast); } }
     });
   }
+  function updateUIYT(v){ statusEl.textContent=`Volume — ${v}%`; barFill.style.width=v+"%"; }
+  function setYTVolume(v){ ytLast=v; updateUIYT(v); try{ ytPlayer && ytPlayer.setVolume && ytPlayer.setVolume(v); }catch(e){} }
+  document.getElementById('loadBtn').onclick=()=>{
+    const id=extractYouTubeId(document.getElementById('ytUrl').value.trim());
+    if(!id) return alert('Lien/ID YouTube invalide.');
+    initYT(id); setYTVolume(50);
+  };
+  playBtn.onclick=()=>{
+    if(!ytPlayer) return; const st=ytPlayer.getPlayerState? ytPlayer.getPlayerState():-1;
+    if(st!==YT.PlayerState.PLAYING){ try{ ytPlayer.playVideo(); }catch(e){} } else { try{ ytPlayer.pauseVideo(); }catch(e){} }
+  };
 
-  function updateUI(vol){
-    statusEl.textContent=`Volume — ${vol}%`;
-    barFill.style.width=vol+"%";
-  }
-
-  function setVolume(vol){
-    lastSet=vol;
-    updateUI(vol);
-    try{ if(player && player.setVolume) player.setVolume(vol); }catch(e){}
-  }
-
-  function gammaToVolume(g){
-    const clamped=Math.max(-90, Math.min(90, g||0));
-    const vol=Math.round(((clamped + 90) / 180) * 100);
-    return Math.max(0, Math.min(100, vol));
-  }
-
+  // Orientation (partagée YT/MP4, activée par bouton)
+  let orientationActive=false; // global flag pour les deux modes
   function handleOrientation(ev){
     if(!orientationActive) return;
-    const gamma = typeof ev.gamma === 'number' ? ev.gamma : 0;
-    tiltLabel.textContent = `Tilt — ${gamma.toFixed(0)}°`;
-    const targetVol = gammaToVolume(gamma);
-    const smoothed = Math.round(lastSet + (targetVol - lastSet) * 0.25);
-    if(smoothed!==lastSet) setVolume(smoothed);
+    const g = typeof ev.gamma==='number' ? ev.gamma : 0;
+    const v = gammaToVolume(g);
+    // YT UI (setVolume sera ignoré par iOS, mais on l'appelle quand même)
+    ytLast = Math.round(ytLast + (v - ytLast)*0.25);
+    updateUIYT(ytLast);
+    try{ if(ytPlayer) ytPlayer.setVolume(ytLast); }catch(e){}
+    tiltLabel.textContent = `Tilt — ${g.toFixed(0)}°`;
+    // MP4 WebAudio appliqué dans handleMP4Volume()
+    handleMP4Volume(v, g);
   }
-
-  function requestMotionPermission(){
+  function requestMotionPermission(btn){
     const anyWindow = window;
     if(typeof anyWindow.DeviceOrientationEvent !== 'undefined' && typeof anyWindow.DeviceOrientationEvent.requestPermission === 'function'){
       anyWindow.DeviceOrientationEvent.requestPermission().then(state=>{
-        if(state==='granted'){
-          orientationActive=true;
-          window.addEventListener('deviceorientation', handleOrientation);
-          document.getElementById('permBtn').textContent='Contrôle par inclinaison actif';
-          document.getElementById('permBtn').disabled=true;
-        }else{
-          alert('Permission refusée. Autorise Mouvement & Orientation dans les réglages.');
-        }
-      }).catch(()=>{
-        alert('Impossible de demander la permission des capteurs. Essaie en HTTPS dans Safari.');
-      });
-    }else{
-      orientationActive=true;
-      window.addEventListener('deviceorientation', handleOrientation);
-      document.getElementById('permBtn').textContent='Contrôle par inclinaison actif';
-      document.getElementById('permBtn').disabled=true;
-    }
+        if(state==='granted') startOrientation(btn); else alert('Permission capteurs refusée.');
+      }).catch(()=> alert('Permission capteurs indisponible. Essaie en HTTPS dans Safari.'));
+    }else{ startOrientation(btn); }
   }
-
-  document.getElementById('permBtn').addEventListener('click', requestMotionPermission);
-
-  document.getElementById('loadBtn').addEventListener('click', ()=>{
-    const val=document.getElementById('ytUrl').value.trim();
-    const id=extractYouTubeId(val);
-    if(!id){ alert('Lien/ID YouTube invalide.'); return; }
-    initPlayer(id);
-    setVolume(50);
-  });
-
-  playBtn.addEventListener('click', ()=>{
-    if(!player) return;
-    const state=player.getPlayerState ? player.getPlayerState() : -1;
-    if(state!==YT.PlayerState.PLAYING){ try{ player.playVideo(); }catch(e){} }
-    else{ try{ player.pauseVideo(); }catch(e){} }
-  });
+  function startOrientation(btn){
+    orientationActive=true;
+    window.addEventListener('deviceorientation', handleOrientation);
+    btn.textContent='Contrôle par inclinaison actif'; btn.disabled=true;
+  }
+  document.getElementById('permBtn').onclick=(e)=>requestMotionPermission(e.currentTarget);
 
   window.addEventListener('orientationchange', ()=>{
     const portrait = window.matchMedia('(orientation: portrait)').matches;
-    if(!portrait){
-      orientationActive=false;
-      const btn=document.getElementById('permBtn');
-      btn.disabled=false;
-      btn.textContent='Activer le contrôle par inclinaison';
-    }
+    if(!portrait){ orientationActive=false; const b=document.getElementById('permBtn'); b.disabled=false; b.textContent='Activer le contrôle par inclinaison'; }
   });
 
-  // init UI
-  (function(){ document.getElementById('status').textContent='Volume — 0%'; })();
-  </script>
+  // --- MP4 + WebAudio ---
+  const mp4Video = document.getElementById('mp4Video');
+  const status2 = document.getElementById('status2');
+  const barFill2 = document.getElementById('barFill2');
+  const tiltLabel2 = document.getElementById('tiltLabel2');
+  const mp4Play = document.getElementById('mp4Play');
+  let audioCtx=null, srcNode=null, gainNode=null, lastMP4=50;
 
-  <script>
-    // Service Worker registration
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(console.warn);
-      });
-    }
+  function ensureAudioGraph(){
+    if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+    if(!srcNode){ srcNode = audioCtx.createMediaElementSource(mp4Video); }
+    if(!gainNode){ gainNode = audioCtx.createGain(); gainNode.gain.value = 0.5; srcNode.connect(gainNode).connect(audioCtx.destination); }
+  }
+  function setMP4UI(v){ status2.textContent=`Volume — ${v}%`; barFill2.style.width=v+"%"; }
+  function setMP4Volume(v){ lastMP4=v; setMP4UI(v); if(gainNode){ gainNode.gain.value = v/100; } }
+  function handleMP4Volume(v, g){ // appelé dans handleOrientation
+    if(!gainNode) return; const sm = Math.round(lastMP4 + (v - lastMP4)*0.25); if(sm!==lastMP4){ setMP4Volume(sm); }
+    tiltLabel2.textContent = `Tilt — ${ (g||0).toFixed(0) }°`;
+  }
+
+  document.getElementById('mp4Load').onclick=async ()=>{
+    const url = document.getElementById('mp4Url').value.trim();
+    if(!url) return alert('Colle une URL MP4 valide.');
+    ensureAudioGraph();
+    try{ await audioCtx.resume(); }catch(e){}
+    mp4Video.src = url; mp4Video.load(); setMP4Volume(50); mp4Play.disabled=false;
+  };
+  mp4Play.onclick=()=>{ if(mp4Video.paused){ mp4Video.play().catch(()=>{}); } else { mp4Video.pause(); } };
+
+  // init UI
+  updateUIYT(0); setMP4UI(0);
+
+  // Service Worker PWA
+  if('serviceWorker' in navigator){ window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
   </script>
 </body>
 </html>
