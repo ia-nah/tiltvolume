@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>TiltVolume • YouTube contrôlé par l’inclinaison</title>
+  <!-- PWA metas -->
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <style>
+    :root{ --bg:#0b0f14; --fg:#eaf2ff; --muted:#a9b4c7; --accent:#5bbcff; --card:#121823; }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg)}
+    .wrap{max-width:920px;margin:0 auto;padding:16px 16px 80px}
+    header{position:sticky;top:0;background:linear-gradient(180deg, rgba(11,15,20,.95), rgba(11,15,20,.65));backdrop-filter:saturate(1.2) blur(8px);z-index:2}
+    h1{font-size:20px;margin:0;padding:14px 0;display:flex;align-items:center;gap:10px}
+    h1 span.logo{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--accent);color:#00324a;font-weight:900}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:14px;box-shadow:0 8px 20px rgba(0,0,0,.25)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input[type="url"]{flex:1;min-width:200px;border:1px solid rgba(255,255,255,.1);background:#0e1520;color:var(--fg);border-radius:12px;padding:12px 14px;font-size:16px}
+    button{border:0;border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px;color:#03121a;background:var(--accent);cursor:pointer;box-shadow:0 6px 14px rgba(91,188,255,.35)}
+    button.secondary{background:#1f2a37;color:var(--fg);box-shadow:none;border:1px solid rgba(255,255,255,.08)}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .help{color:var(--muted);font-size:13px;margin-top:8px}
+    .player-shell{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:16 / 9}
+    #player{width:100%;height:100%}
+    .hud{position:absolute;left:10px;bottom:10px;right:10px;display:flex;align-items:center;gap:10px;pointer-events:none}
+    .bar{flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.15);overflow:hidden}
+    .bar > i{display:block;height:100%;width:50%;background:linear-gradient(90deg,#3b82f6,#22d3ee)}
+    .badge{pointer-events:auto;border-radius:999px;padding:8px 12px;background:rgba(255,255,255,.08);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.15)}
+    .status{font-variant-numeric:tabular-nums}
+    .perm{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .note{font-size:12px;color:var(--muted)}
+    .grid{display:grid;gap:12px}
+    @media (max-width:480px){h1{font-size:18px}}
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <h1><span class="logo">↔︎</span> TiltVolume • YouTube au tilt</h1>
+  </header>
+
+  <main class="wrap grid">
+    <section class="card grid">
+      <label for="ytUrl">Colle un lien YouTube (long ou court) :</label>
+      <div class="row">
+        <input id="ytUrl" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+        <button id="loadBtn">Intégrer</button>
+        <button id="playBtn" class="secondary" disabled>Lire / Pause</button>
+      </div>
+      <p class="help">L’app règle le volume selon l’inclinaison en mode <strong>portrait</strong> : au milieu (téléphone droit) = 50%. Penche à droite → +volume, penche à gauche → −volume.</p>
+      <div class="perm">
+        <button id="permBtn" class="secondary">Activer le contrôle par inclinaison</button>
+        <span class="note">iPhone (iOS 13+) : il faut autoriser l’accès aux capteurs de mouvement. Utilise HTTPS (ex. GitHub Pages) pour que cela fonctionne.</span>
+      </div>
+    </section>
+
+    <section class="card grid">
+      <div class="player-shell">
+        <div id="player"></div>
+        <div class="hud">
+          <div class="badge status" id="status">Volume — 0%</div>
+          <div class="bar"><i id="barFill" style="width:0%"></i></div>
+          <div class="badge" id="tiltLabel">Tilt — 0°</div>
+        </div>
+      </div>
+      <p class="note">Astuce : si le volume ne bouge pas, vérifie que l’orientation est en portrait, que l’autorisation capteurs est accordée et qu’une vidéo est chargée. Le volume agit sur le lecteur YouTube, pas sur le volume système iOS.</p>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Comment ça marche ?</summary>
+        <ul>
+          <li>Colle un lien YouTube puis clique <em>Intégrer</em>.</li>
+          <li>Sur iPhone, clique <em>Activer le contrôle par inclinaison</em> et autorise l’accès.</li>
+          <li>Redresse le téléphone (portrait) : volume ≈ 50%. Penche à droite pour augmenter jusqu’à 100%, à gauche pour baisser jusqu’à 0%.</li>
+          <li>Le bouton <em>Lire / Pause</em> assure le démarrage sur iOS (lecture requiert un geste utilisateur).</li>
+        </ul>
+      </details>
+    </section>
+  </main>
+
+  <!-- YouTube IFrame API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+  function extractYouTubeId(url){
+    try{
+      const u=new URL(url);
+      if(u.hostname.includes('youtu.be')) return u.pathname.slice(1);
+      if(u.searchParams.get('v')) return u.searchParams.get('v');
+      const paths=u.pathname.split('/').filter(Boolean);
+      const ix=paths.findIndex(p=>p==='embed'||p==='shorts');
+      if(ix>=0 && paths[ix+1]) return paths[ix+1];
+    }catch(e){}
+    if(/^[a-zA-Z0-9_-]{11}$/.test(url.trim())) return url.trim();
+    return null;
+  }
+
+  let player=null; let lastSet=50; let orientationActive=false;
+  const statusEl=document.getElementById('status');
+  const barFill=document.getElementById('barFill');
+  const tiltLabel=document.getElementById('tiltLabel');
+  const playBtn=document.getElementById('playBtn');
+
+  window.onYouTubeIframeAPIReady=function(){};
+
+  function initPlayer(videoId){
+    if(player){ player.destroy(); }
+    player=new YT.Player('player',{
+      videoId,
+      playerVars:{ rel:0, playsinline:1, origin:location.origin },
+      events:{
+        onReady:()=>{ playBtn.disabled=false; updateUI(lastSet); },
+        onStateChange:(e)=>{}
+      }
+    });
+  }
+
+  function updateUI(vol){
+    statusEl.textContent=`Volume — ${vol}%`;
+    barFill.style.width=vol+"%";
+  }
+
+  function setVolume(vol){
+    lastSet=vol;
+    updateUI(vol);
+    try{ if(player && player.setVolume) player.setVolume(vol); }catch(e){}
+  }
+
+  function gammaToVolume(g){
+    const clamped=Math.max(-90, Math.min(90, g||0));
+    const vol=Math.round(((clamped + 90) / 180) * 100);
+    return Math.max(0, Math.min(100, vol));
+  }
+
+  function handleOrientation(ev){
+    if(!orientationActive) return;
+    const gamma = typeof ev.gamma === 'number' ? ev.gamma : 0;
+    tiltLabel.textContent = `Tilt — ${gamma.toFixed(0)}°`;
+    const targetVol = gammaToVolume(gamma);
+    const smoothed = Math.round(lastSet + (targetVol - lastSet) * 0.25);
+    if(smoothed!==lastSet) setVolume(smoothed);
+  }
+
+  function requestMotionPermission(){
+    const anyWindow = window;
+    if(typeof anyWindow.DeviceOrientationEvent !== 'undefined' && typeof anyWindow.DeviceOrientationEvent.requestPermission === 'function'){
+      anyWindow.DeviceOrientationEvent.requestPermission().then(state=>{
+        if(state==='granted'){
+          orientationActive=true;
+          window.addEventListener('deviceorientation', handleOrientation);
+          document.getElementById('permBtn').textContent='Contrôle par inclinaison actif';
+          document.getElementById('permBtn').disabled=true;
+        }else{
+          alert('Permission refusée. Autorise Mouvement & Orientation dans les réglages.');
+        }
+      }).catch(()=>{
+        alert('Impossible de demander la permission des capteurs. Essaie en HTTPS dans Safari.');
+      });
+    }else{
+      orientationActive=true;
+      window.addEventListener('deviceorientation', handleOrientation);
+      document.getElementById('permBtn').textContent='Contrôle par inclinaison actif';
+      document.getElementById('permBtn').disabled=true;
+    }
+  }
+
+  document.getElementById('permBtn').addEventListener('click', requestMotionPermission);
+
+  document.getElementById('loadBtn').addEventListener('click', ()=>{
+    const val=document.getElementById('ytUrl').value.trim();
+    const id=extractYouTubeId(val);
+    if(!id){ alert('Lien/ID YouTube invalide.'); return; }
+    initPlayer(id);
+    setVolume(50);
+  });
+
+  playBtn.addEventListener('click', ()=>{
+    if(!player) return;
+    const state=player.getPlayerState ? player.getPlayerState() : -1;
+    if(state!==YT.PlayerState.PLAYING){ try{ player.playVideo(); }catch(e){} }
+    else{ try{ player.pauseVideo(); }catch(e){} }
+  });
+
+  window.addEventListener('orientationchange', ()=>{
+    const portrait = window.matchMedia('(orientation: portrait)').matches;
+    if(!portrait){
+      orientationActive=false;
+      const btn=document.getElementById('permBtn');
+      btn.disabled=false;
+      btn.textContent='Activer le contrôle par inclinaison';
+    }
+  });
+
+  // init UI
+  (function(){ document.getElementById('status').textContent='Volume — 0%'; })();
+  </script>
+
+  <script>
+    // Service Worker registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(console.warn);
+      });
+    }
+  </script>
+</body>
+</html>
